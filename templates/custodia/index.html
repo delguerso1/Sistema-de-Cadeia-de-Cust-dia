@@ -1,0 +1,133 @@
+{% extends 'custodia/base.html' %}
+
+{% block title %}Cadastro de Cadeia de Custódia - Sistema de Cadeia de Custódia{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <h2>Cadastro de Cadeia de Custódia</h2>
+    <p class="intro-text">
+        Preencha os dados abaixo para gerar o documento de cadeia de custódia dos documentos e arquivos.
+        O sistema irá calcular o hash SHA-256 de todos os arquivos na pasta e subpastas, e gerar um PDF com todas as informações.
+    </p>
+
+    <form method="post" id="custodia-form" class="custodia-form">
+        {% csrf_token %}
+        
+        <div class="form-section">
+            <h3>Informações do Policial Responsável</h3>
+            
+            <div class="form-group">
+                <label for="{{ form.nome_policial.id_for_label }}">{{ form.nome_policial.label }}</label>
+                {{ form.nome_policial }}
+                {% if form.nome_policial.errors %}
+                    <div class="error-message">{{ form.nome_policial.errors }}</div>
+                {% endif %}
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.matricula.id_for_label }}">{{ form.matricula.label }}</label>
+                    {{ form.matricula }}
+                    {% if form.matricula.errors %}
+                        <div class="error-message">{{ form.matricula.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.cargo.id_for_label }}">{{ form.cargo.label }}</label>
+                    {{ form.cargo }}
+                    {% if form.cargo.errors %}
+                        <div class="error-message">{{ form.cargo.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.delegacia.id_for_label }}">{{ form.delegacia.label }}</label>
+                {{ form.delegacia }}
+                {% if form.delegacia.errors %}
+                    <div class="error-message">{{ form.delegacia.errors }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Informações do Caso</h3>
+            
+            <div class="form-group">
+                <label for="{{ form.numero_procedimento.id_for_label }}">{{ form.numero_procedimento.label }}</label>
+                {{ form.numero_procedimento }}
+                {% if form.numero_procedimento.errors %}
+                    <div class="error-message">{{ form.numero_procedimento.errors }}</div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.local_crime.id_for_label }}">{{ form.local_crime.label }}</label>
+                {{ form.local_crime }}
+                {% if form.local_crime.errors %}
+                    <div class="error-message">{{ form.local_crime.errors }}</div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.data_coleta.id_for_label }}">{{ form.data_coleta.label }}</label>
+                {{ form.data_coleta }}
+                {% if form.data_coleta.errors %}
+                    <div class="error-message">{{ form.data_coleta.errors }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Seleção da Pasta com Documentos</h3>
+            
+            <div class="form-group">
+                <label for="{{ form.caminho_pasta.id_for_label }}">{{ form.caminho_pasta.label }}</label>
+                {{ form.caminho_pasta }}
+                {% if form.caminho_pasta.help_text %}
+                    <small class="help-text">{{ form.caminho_pasta.help_text }}</small>
+                {% endif %}
+                {% if form.caminho_pasta.errors %}
+                    <div class="error-message">{{ form.caminho_pasta.errors }}</div>
+                {% endif %}
+                <button type="button" id="btn-selecionar-pasta" class="btn-secondary">Procurar Pasta</button>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Observações (Opcional)</h3>
+            
+            <div class="form-group">
+                <label for="{{ form.observacoes.id_for_label }}">{{ form.observacoes.label }}</label>
+                {{ form.observacoes }}
+                {% if form.observacoes.errors %}
+                    <div class="error-message">{{ form.observacoes.errors }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary" id="btn-submit">
+                <span id="btn-text">Gerar Cadeia de Custódia</span>
+                <span id="btn-loading" class="loading-spinner" style="display: none;">Processando...</span>
+            </button>
+            <a href="{% url 'custodia:lista' %}" class="btn-secondary">Ver Custódias</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('custodia-form').addEventListener('submit', function(e) {
+        const btnSubmit = document.getElementById('btn-submit');
+        const btnText = document.getElementById('btn-text');
+        const btnLoading = document.getElementById('btn-loading');
+        
+        btnSubmit.disabled = true;
+        btnText.style.display = 'none';
+        btnLoading.style.display = 'inline';
+    });
+</script>
+{% endblock %}

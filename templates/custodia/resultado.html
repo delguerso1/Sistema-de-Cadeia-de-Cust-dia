@@ -1,0 +1,85 @@
+{% extends 'custodia/base.html' %}
+{% load static %}
+
+{% block title %}Resultado - Cadeia de Custódia #{{ custodia.numero_documento }}{% endblock %}
+
+{% block content %}
+<div class="result-container">
+    <div class="success-header">
+        <h2>✓ Cadeia de Custódia Criada com Sucesso!</h2>
+        <p class="document-number">Número do Documento: <strong>{{ custodia.numero_documento }}</strong></p>
+    </div>
+
+    <div class="result-section">
+        <h3>Hash SHA-256 da Pasta</h3>
+        <div class="hash-display">
+            <code class="hash-code">{{ custodia.hash_pasta }}</code>
+            <button class="btn-copy" onclick="copiarHash()" title="Copiar hash">
+                📋 Copiar
+            </button>
+        </div>
+        <p class="hash-info">
+            Este hash garante a integridade dos arquivos. Qualquer alteração resultará em um hash diferente.
+        </p>
+    </div>
+
+    <div class="result-grid">
+        <div class="result-card">
+            <h4>Informações do Policial</h4>
+            <p><strong>Nome:</strong> {{ custodia.policial.nome_completo }}</p>
+            <p><strong>Matrícula:</strong> {{ custodia.policial.matricula }}</p>
+            <p><strong>Cargo:</strong> {{ custodia.policial.cargo|default:"Não informado" }}</p>
+            <p><strong>Delegacia:</strong> {{ custodia.policial.delegacia|default:"Não informado" }}</p>
+        </div>
+
+        <div class="result-card">
+            <h4>Informações do Caso</h4>
+            <p><strong>Procedimento:</strong> {{ custodia.caso.numero_procedimento }}</p>
+            <p><strong>Local:</strong> {{ custodia.caso.local_crime }}</p>
+            <p><strong>Data Coleta:</strong> {{ custodia.caso.data_coleta|date:"d/m/Y H:i" }}</p>
+        </div>
+
+        <div class="result-card">
+            <h4>Estatísticas</h4>
+            <p><strong>Total de Arquivos:</strong> {{ custodia.total_arquivos }}</p>
+            <p><strong>Tamanho Total:</strong> {{ tamanho_formatado }}</p>
+            <p><strong>Data de Criação:</strong> {{ custodia.data_criacao|date:"d/m/Y H:i" }}</p>
+        </div>
+    </div>
+
+    <div class="result-section">
+        <h3>Documento PDF</h3>
+        {% if pdf_disponivel %}
+            <p>O documento PDF foi gerado com sucesso e contém todas as informações da cadeia de custódia.</p>
+            <div class="pdf-actions">
+                <a href="{% url 'custodia:download_pdf' custodia.id %}" class="btn-primary" download>
+                    📄 Baixar PDF
+                </a>
+                <a href="{% url 'custodia:detalhes' custodia.id %}" class="btn-secondary">
+                    Ver Detalhes Completos
+                </a>
+            </div>
+        {% else %}
+            <div class="alert alert-warning">
+                O PDF ainda está sendo gerado ou houve um erro. Tente novamente mais tarde.
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="result-actions">
+        <a href="{% url 'custodia:index' %}" class="btn-primary">Criar Nova Custódia</a>
+        <a href="{% url 'custodia:lista' %}" class="btn-secondary">Ver Todas as Custódias</a>
+    </div>
+</div>
+
+<script>
+function copiarHash() {
+    const hash = '{{ custodia.hash_pasta }}';
+    navigator.clipboard.writeText(hash).then(function() {
+        alert('Hash copiado para a área de transferência!');
+    }, function(err) {
+        console.error('Erro ao copiar: ', err);
+    });
+}
+</script>
+{% endblock %}

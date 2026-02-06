@@ -1,0 +1,193 @@
+{% extends 'custodia/base.html' %}
+
+{% block title %}Lista de Custódias - Sistema de Cadeia de Custódia{% endblock %}
+
+{% block content %}
+<div class="list-container">
+    <div class="list-header">
+        <h2>Lista de Custódias</h2>
+        <a href="{% url 'custodia:index' %}" class="btn-primary">Nova Custódia</a>
+    </div>
+
+    {% if custodias %}
+        <div class="table-container">
+            <table class="custodias-table">
+                <thead>
+                    <tr>
+                        <th>Número do Documento</th>
+                        <th>Policial</th>
+                        <th>Procedimento</th>
+                        <th>Hash (resumido)</th>
+                        <th>Arquivos</th>
+                        <th>Data</th>
+                        <th>PDF</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for custodia in custodias %}
+                    <tr>
+                        <td><strong>{{ custodia.numero_documento }}</strong></td>
+                        <td>{{ custodia.policial.nome_completo }}</td>
+                        <td>{{ custodia.caso.numero_procedimento }}</td>
+                        <td><code class="hash-small">{{ custodia.hash_pasta|slice:":16" }}...</code></td>
+                        <td>{{ custodia.total_arquivos }}</td>
+                        <td>{{ custodia.data_criacao|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            {% if custodia.pdf_gerado %}
+                                <span class="badge badge-success">✓ Sim</span>
+                            {% else %}
+                                <span class="badge badge-warning">✗ Não</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'custodia:detalhes' custodia.id %}" class="btn-link">Ver</a>
+                            {% if custodia.pdf_gerado %}
+                                <a href="{% url 'custodia:download_pdf' custodia.id %}" class="btn-link">PDF</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <p class="list-info">Exibindo {{ custodias|length }} custódia(s).</p>
+    {% else %}
+        <div class="empty-state">
+            <p>Nenhuma custódia cadastrada ainda.</p>
+            <a href="{% url 'custodia:index' %}" class="btn-primary">Criar Primeira Custódia</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.list-container {
+    background: white;
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.list-header h2 {
+    color: #667eea;
+    margin: 0;
+}
+
+.table-container {
+    overflow-x: auto;
+}
+
+.custodias-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+}
+
+.custodias-table thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.custodias-table th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+}
+
+.custodias-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.custodias-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.hash-small {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    background: #ecf0f1;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+}
+
+.badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.badge-success {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.badge-warning {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.btn-link {
+    color: #667eea;
+    text-decoration: none;
+    margin-right: 1rem;
+    font-weight: 600;
+}
+
+.btn-link:hover {
+    text-decoration: underline;
+}
+
+.list-info {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 1rem;
+    text-align: center;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #666;
+}
+
+.empty-state p {
+    font-size: 1.2rem;
+    margin-bottom: 1.5rem;
+}
+
+@media (max-width: 768px) {
+    .list-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    
+    .table-container {
+        overflow-x: scroll;
+    }
+    
+    .custodias-table {
+        font-size: 0.9rem;
+    }
+    
+    .custodias-table th,
+    .custodias-table td {
+        padding: 0.5rem;
+    }
+}
+</style>
+{% endblock %}
