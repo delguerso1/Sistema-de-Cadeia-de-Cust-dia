@@ -126,7 +126,7 @@ def detalhes_custodia(request, custodia_id):
     custodia = get_object_or_404(Custodia, id=custodia_id)
     
     # Obter arquivos paginados
-    arquivos = custodia.arquivos.all()[:100]
+    arquivos = custodia.arquivos.all().order_by('caminho_relativo')
     
     context = {
         'custodia': custodia,

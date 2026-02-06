@@ -1,4 +1,5 @@
 {% extends 'custodia/base.html' %}
+{% load tz %}
 {% load static %}
 
 {% block title %}Detalhes - Cadeia de Custódia #{{ custodia.numero_documento }}{% endblock %}
@@ -25,7 +26,7 @@
                 </div>
                 <div class="info-row">
                     <span class="info-label">Data de Criação:</span>
-                    <span class="info-value">{{ custodia.data_criacao|date:"d/m/Y H:i:s" }}</span>
+                    <span class="info-value">{{ custodia.data_criacao|localtime|date:"d/m/Y H:i:s" }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">Hash SHA-256:</span>
@@ -120,29 +121,29 @@
                 <table class="arquivos-table">
                     <thead>
                         <tr>
-                            <th>Nome do Arquivo</th>
                             <th>Caminho Relativo</th>
+                            <th>Nome do Arquivo</th>
                             <th>Tamanho</th>
-                            <th>Tipo</th>
+                            <th>Hash</th>
                             <th>Data Modificação</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for arquivo in arquivos %}
                         <tr>
-                            <td><strong>{{ arquivo.nome_arquivo }}</strong></td>
                             <td><code class="path-small">{{ arquivo.caminho_relativo }}</code></td>
+                            <td><strong>{{ arquivo.nome_arquivo }}</strong></td>
                             <td>{{ arquivo.tamanho_formatado }}</td>
-                            <td>{{ arquivo.tipo_mime|default:"N/A" }}</td>
-                            <td>{{ arquivo.data_modificacao|date:"d/m/Y H:i"|default:"N/A" }}</td>
+                            <td><code class="hash-cell">{{ arquivo.hash_arquivo|default:"N/A" }}</code></td>
+                            <td>{{ arquivo.data_modificacao|localtime|date:"d/m/Y H:i"|default:"N/A" }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
-            {% if total_arquivos > 100 %}
+            {% if total_arquivos > 0 %}
                 <p class="arquivos-info">
-                    <i>Exibindo 100 de {{ total_arquivos }} arquivos. Consulte o banco de dados para a lista completa.</i>
+                    <i>Exibindo {{ total_arquivos }} arquivo(s).</i>
                 </p>
             {% endif %}
         {% else %}
@@ -249,6 +250,17 @@ function copiarHash() {
     background: #2c3e50;
     color: #ecf0f1;
     padding: 0.5rem;
+    border-radius: 3px;
+    word-break: break-all;
+    display: inline-block;
+    max-width: 100%;
+}
+
+.hash-cell {
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    background: #ecf0f1;
+    padding: 0.2rem 0.35rem;
     border-radius: 3px;
     word-break: break-all;
     display: inline-block;

@@ -25,7 +25,7 @@ class ArquivoInline(admin.TabularInline):
     extra = 0
     readonly_fields = ('nome_arquivo', 'caminho_relativo', 'tamanho_bytes', 'data_modificacao', 'hash_arquivo', 'tipo_mime')
     can_delete = False
-    fields = ('nome_arquivo', 'caminho_relativo', 'tamanho_bytes', 'data_modificacao', 'tipo_mime')
+    fields = ('nome_arquivo', 'caminho_relativo', 'tamanho_bytes', 'data_modificacao', 'hash_arquivo')
 
 
 @admin.register(Custodia)
@@ -65,9 +65,9 @@ class CustodiaAdmin(admin.ModelAdmin):
 
 @admin.register(Arquivo)
 class ArquivoAdmin(admin.ModelAdmin):
-    list_display = ('nome_arquivo', 'custodia', 'tamanho_formatado', 'tipo_mime', 'data_modificacao')
-    list_filter = ('tipo_mime', 'data_modificacao', 'custodia')
-    search_fields = ('nome_arquivo', 'caminho_completo', 'custodia__numero_documento')
+    list_display = ('nome_arquivo', 'custodia', 'tamanho_formatado', 'hash_arquivo', 'data_modificacao')
+    list_filter = ('data_modificacao', 'custodia')
+    search_fields = ('nome_arquivo', 'caminho_completo', 'hash_arquivo', 'custodia__numero_documento')
     readonly_fields = ('custodia', 'nome_arquivo', 'caminho_completo', 'caminho_relativo', 'tamanho_bytes', 'data_modificacao', 'hash_arquivo', 'tipo_mime')
     ordering = ('custodia', 'caminho_relativo')
     

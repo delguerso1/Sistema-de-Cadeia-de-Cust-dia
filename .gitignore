@@ -23,3 +23,7 @@ pdfs/*.pdf
 *.swp
 .DS_Store
 Thumbs.db
+.env
+
+# Pasta excluida do controle de versao
+Sistema-de-Cadeia-de-Cust-dia/

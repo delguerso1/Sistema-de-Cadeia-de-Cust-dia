@@ -33,6 +33,15 @@ def criar_qrcode_hash(hash_value: str) -> BytesIO:
     return img_bytes
 
 
+def formatar_datetime(dt, formato: str) -> str:
+    """Formata datetime respeitando o fuso horário local"""
+    if not dt:
+        return 'N/A'
+    if timezone.is_aware(dt):
+        dt = timezone.localtime(dt)
+    return dt.strftime(formato)
+
+
 def gerar_pdf_custodia(custodia: Custodia) -> str:
     """
     Gera o PDF completo da cadeia de custódia
@@ -101,6 +110,21 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
         textColor=colors.HexColor('#34495e'),
         alignment=TA_JUSTIFY
     )
+
+    label_style = ParagraphStyle(
+        'LabelCustom',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.black,
+        fontName='Helvetica-Bold',
+        wordWrap='CJK'
+    )
+
+    wrap_style = ParagraphStyle(
+        'WrapCustom',
+        parent=normal_style,
+        wordWrap='CJK'
+    )
     
     # Estilo para células da tabela (quebra de linha)
     cell_style = ParagraphStyle(
@@ -113,6 +137,7 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
         rightIndent=0,
         spaceBefore=0,
         spaceAfter=0,
+        wordWrap='CJK',
     )
     
     # ========== CABEÇALHO ==========
@@ -122,8 +147,8 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
     
     # Informações do documento
     info_doc_data = [
-        ['Número do Documento:', custodia.numero_documento],
-        ['Data e Hora de Geração:', timezone.now().strftime('%d/%m/%Y %H:%M:%S')],
+        [Paragraph('Número do Documento:', label_style), Paragraph(custodia.numero_documento or 'N/A', wrap_style)],
+        [Paragraph('Data e Hora de Geração:', label_style), Paragraph(formatar_datetime(timezone.now(), '%d/%m/%Y %H:%M:%S'), wrap_style)],
     ]
     info_doc_table = Table(info_doc_data, colWidths=[6*cm, 10*cm])
     info_doc_table.setStyle(TableStyle([
@@ -144,10 +169,10 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
     story.append(Paragraph("INFORMAÇÕES DO POLICIAL RESPONSÁVEL", subtitulo_style))
     
     policial_data = [
-        ['Nome Completo:', custodia.policial.nome_completo],
-        ['Matrícula/Registro:', custodia.policial.matricula],
-        ['Cargo/Função:', custodia.policial.cargo or 'Não informado'],
-        ['Delegacia/Unidade:', custodia.policial.delegacia or 'Não informado'],
+        [Paragraph('Nome Completo:', label_style), Paragraph(custodia.policial.nome_completo or 'N/A', wrap_style)],
+        [Paragraph('Matrícula/Registro:', label_style), Paragraph(custodia.policial.matricula or 'N/A', wrap_style)],
+        [Paragraph('Cargo/Função:', label_style), Paragraph(custodia.policial.cargo or 'Não informado', wrap_style)],
+        [Paragraph('Delegacia/Unidade:', label_style), Paragraph(custodia.policial.delegacia or 'Não informado', wrap_style)],
     ]
     policial_table = Table(policial_data, colWidths=[6*cm, 10*cm])
     policial_table.setStyle(TableStyle([
@@ -168,9 +193,9 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
     story.append(Paragraph("INFORMAÇÕES DO CASO", subtitulo_style))
     
     caso_data = [
-        ['Número do Procedimento/Inquérito:', custodia.caso.numero_procedimento],
-        ['Local do Crime:', custodia.caso.local_crime],
-        ['Data e Hora da Coleta no Local:', custodia.caso.data_coleta.strftime('%d/%m/%Y %H:%M:%S')],
+        [Paragraph('Número do Procedimento/Inquérito:', label_style), Paragraph(custodia.caso.numero_procedimento or 'N/A', wrap_style)],
+        [Paragraph('Local do Crime:', label_style), Paragraph(custodia.caso.local_crime or 'N/A', wrap_style)],
+        [Paragraph('Data e Hora da Coleta no Local:', label_style), Paragraph(formatar_datetime(custodia.caso.data_coleta, '%d/%m/%Y %H:%M:%S'), wrap_style)],
     ]
     caso_table = Table(caso_data, colWidths=[6*cm, 10*cm])
     caso_table.setStyle(TableStyle([
@@ -209,10 +234,10 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
     
     # Outras informações técnicas
     info_tec_data = [
-        ['Data e Hora da Geração do Hash:', custodia.data_criacao.strftime('%d/%m/%Y %H:%M:%S')],
-        ['Caminho Completo da Pasta:', custodia.caminho_pasta],
-        ['Tamanho Total da Pasta:', formatar_tamanho(custodia.tamanho_total or 0)],
-        ['Total de Arquivos:', str(custodia.total_arquivos)],
+        [Paragraph('Data e Hora da Geração do Hash:', label_style), Paragraph(formatar_datetime(custodia.data_criacao, '%d/%m/%Y %H:%M:%S'), wrap_style)],
+        [Paragraph('Caminho Completo da Pasta:', label_style), Paragraph(custodia.caminho_pasta or 'N/A', wrap_style)],
+        [Paragraph('Tamanho Total da Pasta:', label_style), Paragraph(formatar_tamanho(custodia.tamanho_total or 0), wrap_style)],
+        [Paragraph('Total de Arquivos:', label_style), Paragraph(str(custodia.total_arquivos), wrap_style)],
     ]
     info_tec_table = Table(info_tec_data, colWidths=[6*cm, 10*cm])
     info_tec_table.setStyle(TableStyle([
@@ -232,24 +257,25 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
     # ========== INVENTÁRIO DE ARQUIVOS ==========
     story.append(Paragraph("INVENTÁRIO DE ARQUIVOS", subtitulo_style))
     
-    arquivos = custodia.arquivos.all()[:100]  # Limitar a 100 arquivos na primeira página
+    arquivos = custodia.arquivos.all().order_by('caminho_relativo')
     
     if arquivos:
         # Cabeçalho da tabela
-        arquivos_data = [['Nome do Arquivo', 'Tamanho', 'Data Modificação', 'Tipo']]
+        arquivos_data = [['Caminho Relativo', 'Nome do Arquivo', 'Tamanho', 'Data Modificação', 'Hash']]
         
         for arquivo in arquivos:
             nome_seguro = html.escape(arquivo.nome_arquivo or '')
-            tipo_seguro = html.escape(arquivo.tipo_mime or 'N/A')
+            hash_seguro = html.escape(arquivo.hash_arquivo or 'N/A')
             arquivos_data.append([
+                Paragraph(html.escape(arquivo.caminho_relativo or ''), cell_style),
                 Paragraph(nome_seguro, cell_style),
                 formatar_tamanho(arquivo.tamanho_bytes or 0),
-                arquivo.data_modificacao.strftime('%d/%m/%Y %H:%M') if arquivo.data_modificacao else 'N/A',
-                Paragraph(tipo_seguro, cell_style),
+                Paragraph(formatar_datetime(arquivo.data_modificacao, '%d/%m/%Y %H:%M'), cell_style),
+                Paragraph(hash_seguro, cell_style),
             ])
         
-        # Colunas: nome maior, tipo maior para MIME longos; tamanho e data fixos
-        arquivos_table = Table(arquivos_data, colWidths=[6*cm, 2.5*cm, 2.8*cm, 4.7*cm])
+        # Colunas: caminho e nome maiores, hash com quebra de linha; tamanho e data fixos
+        arquivos_table = Table(arquivos_data, colWidths=[4.5*cm, 3.5*cm, 2.0*cm, 2.5*cm, 3.5*cm])
         arquivos_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#34495e')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -269,13 +295,7 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
         ]))
         story.append(arquivos_table)
         
-        if custodia.total_arquivos > 100:
-            story.append(Spacer(1, 0.3*cm))
-            story.append(Paragraph(
-                f"<i>Nota: Exibindo 100 de {custodia.total_arquivos} arquivos. "
-                "Consulte o banco de dados para lista completa.</i>",
-                normal_style
-            ))
+        # Exibe todos os arquivos sem limite
     else:
         story.append(Paragraph("Nenhum arquivo registrado.", normal_style))
     
@@ -291,13 +311,13 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
         tipos_arquivo[extensao] = tipos_arquivo.get(extensao, 0) + 1
     
     stats_data = [
-        ['Total de Arquivos:', str(custodia.total_arquivos)],
-        ['Tamanho Total:', formatar_tamanho(custodia.tamanho_total or 0)],
+        [Paragraph('Total de Arquivos:', label_style), Paragraph(str(custodia.total_arquivos), wrap_style)],
+        [Paragraph('Tamanho Total:', label_style), Paragraph(formatar_tamanho(custodia.tamanho_total or 0), wrap_style)],
     ]
     
     if tipos_arquivo:
         tipos_str = ', '.join([f"{ext} ({count})" for ext, count in sorted(tipos_arquivo.items())])
-        stats_data.append(['Formatos de Arquivo:', tipos_str])
+        stats_data.append([Paragraph('Formatos de Arquivo:', label_style), Paragraph(tipos_str, wrap_style)])
     
     stats_table = Table(stats_data, colWidths=[6*cm, 10*cm])
     stats_table.setStyle(TableStyle([

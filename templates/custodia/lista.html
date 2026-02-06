@@ -1,4 +1,5 @@
 {% extends 'custodia/base.html' %}
+{% load tz %}
 
 {% block title %}Lista de Custódias - Sistema de Cadeia de Custódia{% endblock %}
 
@@ -32,7 +33,7 @@
                         <td>{{ custodia.caso.numero_procedimento }}</td>
                         <td><code class="hash-small">{{ custodia.hash_pasta|slice:":16" }}...</code></td>
                         <td>{{ custodia.total_arquivos }}</td>
-                        <td>{{ custodia.data_criacao|date:"d/m/Y H:i" }}</td>
+                        <td>{{ custodia.data_criacao|localtime|date:"d/m/Y H:i" }}</td>
                         <td>
                             {% if custodia.pdf_gerado %}
                                 <span class="badge badge-success">✓ Sim</span>

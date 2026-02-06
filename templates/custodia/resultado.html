@@ -1,4 +1,5 @@
 {% extends 'custodia/base.html' %}
+{% load tz %}
 {% load static %}
 
 {% block title %}Resultado - Cadeia de Custódia #{{ custodia.numero_documento }}{% endblock %}
@@ -36,14 +37,14 @@
             <h4>Informações do Caso</h4>
             <p><strong>Procedimento:</strong> {{ custodia.caso.numero_procedimento }}</p>
             <p><strong>Local:</strong> {{ custodia.caso.local_crime }}</p>
-            <p><strong>Data Coleta:</strong> {{ custodia.caso.data_coleta|date:"d/m/Y H:i" }}</p>
+            <p><strong>Data Coleta:</strong> {{ custodia.caso.data_coleta|localtime|date:"d/m/Y H:i" }}</p>
         </div>
 
         <div class="result-card">
             <h4>Estatísticas</h4>
             <p><strong>Total de Arquivos:</strong> {{ custodia.total_arquivos }}</p>
             <p><strong>Tamanho Total:</strong> {{ tamanho_formatado }}</p>
-            <p><strong>Data de Criação:</strong> {{ custodia.data_criacao|date:"d/m/Y H:i" }}</p>
+            <p><strong>Data de Criação:</strong> {{ custodia.data_criacao|localtime|date:"d/m/Y H:i" }}</p>
         </div>
     </div>
 
