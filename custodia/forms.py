@@ -1,5 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from .models import Policial, Caso, Custodia
 
 
@@ -128,12 +129,10 @@ class CustodiaForm(forms.Form):
         return caminho
     
     def save(self):
-        """Salva os dados no banco de dados"""
-        from django.utils import timezone
-        from .models import Policial, Caso, Custodia, Arquivo
-        from .utils import calcular_hash_pasta
+        """Salva os dados no banco de dados (nova versão automática por caso/procedimento)."""
+        from .models import Arquivo
         from datetime import datetime
-        
+
         # Obter dados do formulário
         nome_policial = self.cleaned_data['nome_policial']
         matricula = self.cleaned_data['matricula']
@@ -144,83 +143,125 @@ class CustodiaForm(forms.Form):
         data_coleta = self.cleaned_data['data_coleta']
         caminho_pasta = self.cleaned_data['caminho_pasta']
         observacoes = self.cleaned_data.get('observacoes', '')
-        
-        # Criar ou obter Policial
-        policial, _ = Policial.objects.get_or_create(
-            matricula=matricula,
-            defaults={
-                'nome_completo': nome_policial,
-                'cargo': cargo,
-                'delegacia': delegacia
-            }
+
+        from .utils import (
+            calcular_hash_pasta,
+            combinar_hashes_lista_arquivos,
+            calcular_hash_cadeia,
+            particionar_novos_ou_alterados,
         )
-        
-        # Atualizar dados do policial se necessário
-        if policial.nome_completo != nome_policial or policial.cargo != cargo or policial.delegacia != delegacia:
-            policial.nome_completo = nome_policial
-            policial.cargo = cargo
-            policial.delegacia = delegacia
-            policial.save()
-        
-        # Criar ou obter Caso
-        caso, _ = Caso.objects.get_or_create(
-            numero_procedimento=numero_procedimento,
-            defaults={
-                'local_crime': local_crime,
-                'data_coleta': data_coleta
-            }
-        )
-        
-        # Atualizar dados do caso se necessário
-        if caso.local_crime != local_crime or caso.data_coleta != data_coleta:
-            caso.local_crime = local_crime
-            caso.data_coleta = data_coleta
-            caso.save()
-        
-        # Calcular hash da pasta
-        hash_pasta, lista_arquivos = calcular_hash_pasta(caminho_pasta)
-        
-        # Verificar se já existe uma custódia com este hash
-        if Custodia.objects.filter(hash_pasta=hash_pasta).exists():
-            raise ValidationError(
-                'Já existe uma custódia registrada com este hash. '
-                'A pasta pode já ter sido processada anteriormente.'
+
+        # Varredura completa da pasta (hashes por arquivo + lista)
+        _, lista_arquivos = calcular_hash_pasta(caminho_pasta)
+
+        with transaction.atomic():
+            # Criar ou obter Policial
+            policial, _ = Policial.objects.get_or_create(
+                matricula=matricula,
+                defaults={
+                    'nome_completo': nome_policial,
+                    'cargo': cargo,
+                    'delegacia': delegacia
+                }
             )
-        
-        # Gerar número do documento
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        caso_limpo = ''.join(c for c in numero_procedimento if c.isalnum() or c in ['-', '_'])
-        numero_documento = f"CUST-{caso_limpo}-{timestamp}"
-        
-        # Calcular tamanho total
-        tamanho_total = sum(arquivo['tamanho_bytes'] for arquivo in lista_arquivos)
-        
-        # Criar Custodia
-        custodia = Custodia.objects.create(
-            numero_documento=numero_documento,
-            hash_pasta=hash_pasta,
-            caminho_pasta=caminho_pasta,
-            tamanho_total=tamanho_total,
-            total_arquivos=len(lista_arquivos),
-            observacoes=observacoes,
-            policial=policial,
-            caso=caso
-        )
-        
-        # Criar registros de Arquivo
-        from pathlib import Path
-        pasta_base = Path(caminho_pasta)
-        
-        for info_arquivo in lista_arquivos:
-            Arquivo.objects.create(
-                custodia=custodia,
-                nome_arquivo=info_arquivo['nome_arquivo'],
-                caminho_completo=info_arquivo['caminho_completo'],
-                caminho_relativo=info_arquivo['caminho_relativo'],
-                tamanho_bytes=info_arquivo['tamanho_bytes'],
-                data_modificacao=info_arquivo['data_modificacao'],
-                hash_arquivo=info_arquivo.get('hash', ''),
-                tipo_mime=info_arquivo['tipo_mime']
+
+            # Atualizar dados do policial se necessário
+            if policial.nome_completo != nome_policial or policial.cargo != cargo or policial.delegacia != delegacia:
+                policial.nome_completo = nome_policial
+                policial.cargo = cargo
+                policial.delegacia = delegacia
+                policial.save()
+
+            # Criar ou obter Caso
+            caso, _ = Caso.objects.get_or_create(
+                numero_procedimento=numero_procedimento,
+                defaults={
+                    'local_crime': local_crime,
+                    'data_coleta': data_coleta
+                }
             )
-        
+
+            # Atualizar dados do caso se necessário
+            if caso.local_crime != local_crime or caso.data_coleta != data_coleta:
+                caso.local_crime = local_crime
+                caso.data_coleta = data_coleta
+                caso.save()
+
+            # Versão: desativa a atual do caso e encadeia a nova
+            ultima = (
+                Custodia.objects.select_for_update()
+                .filter(caso=caso, ativo=True)
+                .order_by('-versao', '-data_criacao', '-id')
+                .first()
+            )
+
+            hash_cadeia_anterior = ''
+            novos_infos = []
+            if ultima:
+                mapa_prev = {
+                    a.caminho_relativo: a.hash_arquivo
+                    for a in ultima.arquivos.all()
+                }
+                novos_infos, _ = particionar_novos_ou_alterados(lista_arquivos, mapa_prev)
+                if not novos_infos:
+                    raise ValidationError(
+                        'Não há arquivos novos nem alterados em relação à versão anterior '
+                        'deste procedimento. Inclua documentos ou altere arquivos existentes '
+                        'antes de gerar uma nova versão.'
+                    )
+                hash_conteudo_novos = combinar_hashes_lista_arquivos(novos_infos)
+                hash_cadeia_anterior = ultima.hash_pasta
+                hash_pasta_final = calcular_hash_cadeia(hash_cadeia_anterior, hash_conteudo_novos)
+                Custodia.objects.filter(pk=ultima.pk).update(ativo=False)
+                nova_versao = ultima.versao + 1
+                custodia_anterior = ultima
+                novos_paths = {x['caminho_relativo'] for x in novos_infos}
+            else:
+                hash_conteudo_novos = combinar_hashes_lista_arquivos(lista_arquivos)
+                hash_pasta_final = hash_conteudo_novos
+                nova_versao = 1
+                custodia_anterior = None
+                novos_paths = None
+
+            # Gerar número do documento (microsegundos evitam colisão em reenvios no mesmo segundo)
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S%f')
+            caso_limpo = ''.join(c for c in numero_procedimento if c.isalnum() or c in ['-', '_'])
+            numero_documento = f"CUST-{caso_limpo}-{timestamp}"
+
+            # Calcular tamanho total
+            tamanho_total = sum(arquivo['tamanho_bytes'] for arquivo in lista_arquivos)
+
+            # Criar Custodia
+            custodia = Custodia.objects.create(
+                numero_documento=numero_documento,
+                hash_pasta=hash_pasta_final,
+                hash_cadeia_anterior=hash_cadeia_anterior,
+                hash_conteudo_novos=hash_conteudo_novos,
+                caminho_pasta=caminho_pasta,
+                tamanho_total=tamanho_total,
+                total_arquivos=len(lista_arquivos),
+                observacoes=observacoes,
+                policial=policial,
+                caso=caso,
+                versao=nova_versao,
+                custodia_anterior=custodia_anterior,
+                ativo=True,
+            )
+
+            # Criar registros de Arquivo (inventário completo; marca o que entrou no delta desta versão)
+            for info_arquivo in lista_arquivos:
+                rel = info_arquivo['caminho_relativo']
+                novo_flag = True if novos_paths is None else (rel in novos_paths)
+                Arquivo.objects.create(
+                    custodia=custodia,
+                    nome_arquivo=info_arquivo['nome_arquivo'],
+                    caminho_completo=info_arquivo['caminho_completo'],
+                    caminho_relativo=info_arquivo['caminho_relativo'],
+                    tamanho_bytes=info_arquivo['tamanho_bytes'],
+                    data_modificacao=info_arquivo['data_modificacao'],
+                    hash_arquivo=info_arquivo.get('hash', ''),
+                    tipo_mime=info_arquivo['tipo_mime'],
+                    novo_ou_alterado=novo_flag,
+                )
+
         return custodia

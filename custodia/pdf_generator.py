@@ -15,6 +15,11 @@ from .models import Custodia
 from .utils import formatar_tamanho
 
 
+def _formato_versao_pdf(versao: int) -> str:
+    """Ex.: 1 -> V1.0, 2 -> V2.0"""
+    return f"V{versao}.0"
+
+
 def criar_qrcode_hash(hash_value: str) -> BytesIO:
     """Cria um QR Code com o hash e retorna como BytesIO"""
     qr = qrcode.QRCode(
@@ -92,17 +97,6 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
         fontName='Helvetica-Bold'
     )
     
-    hash_style = ParagraphStyle(
-        'HashStyle',
-        parent=styles['Normal'],
-        fontSize=12,
-        textColor=colors.HexColor('#c0392b'),
-        fontName='Courier-Bold',
-        alignment=TA_CENTER,
-        backColor=colors.HexColor('#ecf0f1'),
-        borderPadding=10
-    )
-    
     normal_style = ParagraphStyle(
         'NormalCustom',
         parent=styles['Normal'],
@@ -145,9 +139,17 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
     story.append(Paragraph("DOCUMENTOS E ARQUIVOS", titulo_style))
     story.append(Spacer(1, 0.5*cm))
     
+    doc_anterior_txt = (
+        custodia.custodia_anterior.numero_documento
+        if getattr(custodia, 'custodia_anterior_id', None)
+        else 'N/A (primeira versão)'
+    )
+
     # Informações do documento
     info_doc_data = [
         [Paragraph('Número do Documento:', label_style), Paragraph(custodia.numero_documento or 'N/A', wrap_style)],
+        [Paragraph('Versão (procedimento):', label_style), Paragraph(_formato_versao_pdf(custodia.versao), wrap_style)],
+        [Paragraph('Documento anterior (mesmo caso):', label_style), Paragraph(doc_anterior_txt, wrap_style)],
         [Paragraph('Data e Hora de Geração:', label_style), Paragraph(formatar_datetime(timezone.now(), '%d/%m/%Y %H:%M:%S'), wrap_style)],
     ]
     info_doc_table = Table(info_doc_data, colWidths=[6*cm, 10*cm])
@@ -163,6 +165,12 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
     ]))
     story.append(info_doc_table)
+    story.append(Spacer(1, 0.4*cm))
+    story.append(Paragraph(
+        "<i>Em caso de nova coleta ou alteração do conjunto de arquivos no mesmo procedimento, "
+        "uma nova versão é registrada; as versões anteriores permanecem no histórico para rastreabilidade.</i>",
+        normal_style,
+    ))
     story.append(Spacer(1, 0.8*cm))
     
     # ========== INFORMAÇÕES DO POLICIAL ==========
@@ -214,23 +222,45 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
     
     # ========== INFORMAÇÕES TÉCNICAS ==========
     story.append(Paragraph("INFORMAÇÕES TÉCNICAS", subtitulo_style))
-    
-    # Hash em destaque: label e valor em tabela para evitar sobreposição
-    story.append(Spacer(1, 0.3*cm))
-    hash_table_data = [
-        [Paragraph("Código Hash SHA-256 da Pasta:", normal_style)],
-        [Paragraph(custodia.hash_pasta, hash_style)],
+
+    story.append(Paragraph(
+        "<b>Cadeia de hashes (versão atual do procedimento)</b><br/>"
+        "O hash final desta versão incorpora explicitamente o hash da versão anterior "
+        "(quando existir) e um agregado SHA-256 apenas dos arquivos novos ou com conteúdo alterado. "
+        "Fórmula: <i>SHA-256( hex_anterior + \"|\" + hex_agregado_novos )</i>. "
+        "Na primeira versão (V1.0), o conceito de agregado apenas de novos não se aplica; o hash final reflete todos os arquivos.",
+        normal_style,
+    ))
+    story.append(Spacer(1, 0.35*cm))
+
+    if custodia.versao == 1:
+        agregado_exibicao = 'Não se aplica'
+    else:
+        agregado_exibicao = custodia.hash_conteudo_novos or 'N/A'
+
+    cadeia_rows = [
+        [Paragraph('Hash final (cadeia, esta versão):', label_style), Paragraph(custodia.hash_pasta or 'N/A', wrap_style)],
+        [Paragraph('Hash agregado (novos ou alterados nesta versão):', label_style), Paragraph(agregado_exibicao, wrap_style)],
     ]
-    hash_table = Table(hash_table_data, colWidths=[16*cm])
-    hash_table.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-        ('BOTTOMPADDING', (0, 0), (0, 0), 4),
-        ('TOPPADDING', (0, 1), (0, 1), 8),
+    if custodia.hash_cadeia_anterior:
+        cadeia_rows.insert(
+            1,
+            [Paragraph('Hash final da versão anterior (referência explícita):', label_style), Paragraph(custodia.hash_cadeia_anterior, wrap_style)],
+        )
+    cadeia_table = Table(cadeia_rows, colWidths=[6*cm, 10*cm])
+    cadeia_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#ecf0f1')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
     ]))
-    story.append(hash_table)
-    story.append(Spacer(1, 0.3*cm))
+    story.append(cadeia_table)
+    story.append(Spacer(1, 0.4*cm))
     
     # Outras informações técnicas
     info_tec_data = [
@@ -261,21 +291,22 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
     
     if arquivos:
         # Cabeçalho da tabela
-        arquivos_data = [['Caminho Relativo', 'Nome do Arquivo', 'Tamanho', 'Data Modificação', 'Hash']]
+        arquivos_data = [['Caminho Relativo', 'Nome', 'Novo/alt.', 'Tamanho', 'Data Mod.', 'Hash']]
         
         for arquivo in arquivos:
             nome_seguro = html.escape(arquivo.nome_arquivo or '')
             hash_seguro = html.escape(arquivo.hash_arquivo or 'N/A')
+            delta_txt = 'Sim' if getattr(arquivo, 'novo_ou_alterado', True) else 'Não'
             arquivos_data.append([
                 Paragraph(html.escape(arquivo.caminho_relativo or ''), cell_style),
                 Paragraph(nome_seguro, cell_style),
+                delta_txt,
                 formatar_tamanho(arquivo.tamanho_bytes or 0),
                 Paragraph(formatar_datetime(arquivo.data_modificacao, '%d/%m/%Y %H:%M'), cell_style),
                 Paragraph(hash_seguro, cell_style),
             ])
         
-        # Colunas: caminho e nome maiores, hash com quebra de linha; tamanho e data fixos
-        arquivos_table = Table(arquivos_data, colWidths=[4.5*cm, 3.5*cm, 2.0*cm, 2.5*cm, 3.5*cm])
+        arquivos_table = Table(arquivos_data, colWidths=[3.8*cm, 2.8*cm, 1.2*cm, 1.8*cm, 2.2*cm, 3.2*cm])
         arquivos_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#34495e')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -314,6 +345,13 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
         [Paragraph('Total de Arquivos:', label_style), Paragraph(str(custodia.total_arquivos), wrap_style)],
         [Paragraph('Tamanho Total:', label_style), Paragraph(formatar_tamanho(custodia.tamanho_total or 0), wrap_style)],
     ]
+
+    if custodia.versao >= 2:
+        qtd_novos = custodia.arquivos.filter(novo_ou_alterado=True).count()
+        stats_data.append([
+            Paragraph('Arquivos novos ou alterados em relação à versão anterior:', label_style),
+            Paragraph(str(qtd_novos), wrap_style),
+        ])
     
     if tipos_arquivo:
         tipos_str = ', '.join([f"{ext} ({count})" for ext, count in sorted(tipos_arquivo.items())])
@@ -344,8 +382,6 @@ def gerar_pdf_custodia(custodia: Custodia) -> str:
     qr_img_bytes = criar_qrcode_hash(custodia.hash_pasta)
     qr_img = Image(qr_img_bytes, width=5*cm, height=5*cm)
     story.append(qr_img)
-    story.append(Spacer(1, 0.3*cm))
-    story.append(Paragraph(f"Hash: {custodia.hash_pasta}", hash_style))
     story.append(Spacer(1, 0.5*cm))
     
     # ========== OBSERVAÇÕES ==========

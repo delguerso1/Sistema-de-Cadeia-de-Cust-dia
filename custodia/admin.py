@@ -23,20 +23,49 @@ class CasoAdmin(admin.ModelAdmin):
 class ArquivoInline(admin.TabularInline):
     model = Arquivo
     extra = 0
-    readonly_fields = ('nome_arquivo', 'caminho_relativo', 'tamanho_bytes', 'data_modificacao', 'hash_arquivo', 'tipo_mime')
+    readonly_fields = ('nome_arquivo', 'caminho_relativo', 'tamanho_bytes', 'data_modificacao', 'hash_arquivo', 'tipo_mime', 'novo_ou_alterado')
     can_delete = False
-    fields = ('nome_arquivo', 'caminho_relativo', 'tamanho_bytes', 'data_modificacao', 'hash_arquivo')
+    fields = ('nome_arquivo', 'caminho_relativo', 'novo_ou_alterado', 'tamanho_bytes', 'data_modificacao', 'hash_arquivo')
 
 
 @admin.register(Custodia)
 class CustodiaAdmin(admin.ModelAdmin):
-    list_display = ('numero_documento', 'policial', 'caso', 'hash_pasta_short', 'total_arquivos', 'tamanho_total_formatado', 'pdf_gerado', 'data_criacao')
-    list_filter = ('pdf_gerado', 'data_criacao', 'policial', 'caso')
+    list_display = (
+        'numero_documento',
+        'versao',
+        'ativo',
+        'policial',
+        'caso',
+        'hash_pasta_short',
+        'total_arquivos',
+        'tamanho_total_formatado',
+        'pdf_gerado',
+        'data_criacao',
+    )
+    list_filter = ('pdf_gerado', 'ativo', 'data_criacao', 'policial', 'caso')
     search_fields = ('numero_documento', 'hash_pasta', 'policial__nome_completo', 'caso__numero_procedimento')
-    readonly_fields = ('numero_documento', 'hash_pasta', 'data_criacao', 'tamanho_total', 'total_arquivos', 'caminho_pdf')
+    readonly_fields = (
+        'numero_documento',
+        'hash_pasta',
+        'hash_cadeia_anterior',
+        'hash_conteudo_novos',
+        'data_criacao',
+        'tamanho_total',
+        'total_arquivos',
+        'caminho_pdf',
+    )
     fieldsets = (
         ('Informações Básicas', {
-            'fields': ('numero_documento', 'hash_pasta', 'data_criacao')
+            'fields': (
+                'numero_documento',
+                'hash_pasta',
+                'hash_cadeia_anterior',
+                'hash_conteudo_novos',
+                'data_criacao',
+                'versao',
+                'ativo',
+                'custodia_anterior',
+            )
         }),
         ('Relacionamentos', {
             'fields': ('policial', 'caso')

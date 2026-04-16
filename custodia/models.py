@@ -55,9 +55,23 @@ class Custodia(models.Model):
         verbose_name="Número do Documento"
     )
     hash_pasta = models.CharField(
-        max_length=64, 
-        unique=True, 
-        verbose_name="Hash SHA-256 da Pasta"
+        max_length=64,
+        verbose_name="Hash final da cadeia (esta versão)",
+        help_text=(
+            "Versão 1: igual ao agregado de todos os arquivos. Versões seguintes: "
+            "SHA-256 do par (hash da versão anterior | hash agregado só dos arquivos novos ou alterados)."
+        ),
+    )
+    hash_cadeia_anterior = models.CharField(
+        max_length=64,
+        blank=True,
+        verbose_name="Hash final da versão anterior (referência explícita)",
+        help_text="Cópia do hash final da custódia imediatamente anterior, para rastreabilidade.",
+    )
+    hash_conteudo_novos = models.CharField(
+        max_length=64,
+        verbose_name="Hash agregado (novos ou alterados nesta versão)",
+        help_text="Agregado SHA-256 apenas dos arquivos novos ou com conteúdo alterado em relação à versão anterior.",
     )
     data_criacao = models.DateTimeField(default=timezone.now, verbose_name="Data de Criação")
     caminho_pasta = models.TextField(verbose_name="Caminho Completo da Pasta")
@@ -80,11 +94,34 @@ class Custodia(models.Model):
         verbose_name="Caso",
         related_name='custodias'
     )
+    versao = models.PositiveIntegerField(
+        default=1,
+        verbose_name="Versão",
+        help_text="Número sequencial da custódia dentro do mesmo procedimento/caso.",
+    )
+    custodia_anterior = models.ForeignKey(
+        'self',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='custodias_posteriores',
+        verbose_name="Custódia anterior",
+        help_text="Versão imediatamente anterior no mesmo caso, se houver.",
+    )
+    ativo = models.BooleanField(
+        default=True,
+        verbose_name="Versão atual do caso",
+        help_text="Somente a versão mais recente do caso fica marcada como atual.",
+    )
 
     class Meta:
         verbose_name = "Custódia"
         verbose_name_plural = "Custódias"
         ordering = ['-data_criacao']
+        indexes = [
+            models.Index(fields=['caso', 'ativo'], name='custodia_caso_ativo_idx'),
+            models.Index(fields=['caso', 'versao'], name='custodia_caso_versao_idx'),
+        ]
 
     def __str__(self):
         return f"{self.numero_documento} - {self.hash_pasta[:16]}..."
@@ -117,6 +154,11 @@ class Arquivo(models.Model):
     hash_arquivo = models.CharField(max_length=64, blank=True, verbose_name="Hash SHA-256 do Arquivo")
     tipo_mime = models.CharField(max_length=100, blank=True, verbose_name="Tipo MIME")
     duracao_segundos = models.IntegerField(null=True, blank=True, verbose_name="Duração (segundos)")
+    novo_ou_alterado = models.BooleanField(
+        default=True,
+        verbose_name="Novo ou alterado nesta versão",
+        help_text="Falso se o arquivo já existia com o mesmo hash na versão anterior.",
+    )
 
     class Meta:
         verbose_name = "Arquivo"

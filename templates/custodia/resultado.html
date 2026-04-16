@@ -9,18 +9,32 @@
     <div class="success-header">
         <h2>✓ Cadeia de Custódia Criada com Sucesso!</h2>
         <p class="document-number">Número do Documento: <strong>{{ custodia.numero_documento }}</strong></p>
+        <p class="document-version">Versão do procedimento: <strong>v{{ custodia.versao }}</strong>
+            {% if custodia.custodia_anterior %}
+                <span class="version-note">(substitui o documento {{ custodia.custodia_anterior.numero_documento }})</span>
+            {% endif %}
+        </p>
     </div>
 
     <div class="result-section">
-        <h3>Hash SHA-256 da Pasta</h3>
+        <h3>Cadeia de hashes (SHA-256)</h3>
         <div class="hash-display">
             <code class="hash-code">{{ custodia.hash_pasta }}</code>
-            <button class="btn-copy" onclick="copiarHash()" title="Copiar hash">
-                📋 Copiar
+            <button class="btn-copy" onclick="copiarHash()" title="Copiar hash final">
+                📋 Copiar hash final
             </button>
         </div>
+        {% if custodia.hash_cadeia_anterior %}
+        <p class="hash-sub"><strong>Hash da versão anterior (incorporado):</strong><br>
+            <code class="hash-code-small">{{ custodia.hash_cadeia_anterior }}</code>
+        </p>
+        {% endif %}
+        <p class="hash-sub"><strong>Hash agregado só dos arquivos novos ou alterados nesta versão:</strong><br>
+            <code class="hash-code-small">{{ custodia.hash_conteudo_novos }}</code>
+        </p>
         <p class="hash-info">
-            Este hash garante a integridade dos arquivos. Qualquer alteração resultará em um hash diferente.
+            O hash final incorpora explicitamente o hash da versão anterior (quando houver) e o agregado dos novos ou alterados.
+            Na v1, o hash final coincide com o agregado de todos os arquivos da pasta.
         </p>
     </div>
 
@@ -72,6 +86,37 @@
         <a href="{% url 'custodia:lista' %}" class="btn-secondary">Ver Todas as Custódias</a>
     </div>
 </div>
+
+{% block extra_css %}
+<style>
+.document-version {
+    margin-top: 0.5rem;
+    color: #555;
+    font-size: 1rem;
+}
+.version-note {
+    color: #667eea;
+    font-size: 0.85rem;
+}
+.hash-sub {
+    margin-top: 1rem;
+    color: #444;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+.hash-code-small {
+    display: inline-block;
+    margin-top: 0.35rem;
+    padding: 0.4rem 0.6rem;
+    background: #ecf0f1;
+    color: #2c3e50;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    word-break: break-all;
+    border-radius: 4px;
+}
+</style>
+{% endblock %}
 
 <script>
 function copiarHash() {

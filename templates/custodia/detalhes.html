@@ -29,12 +29,62 @@
                     <span class="info-value">{{ custodia.data_criacao|localtime|date:"d/m/Y H:i:s" }}</span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">Hash SHA-256:</span>
+                    <span class="info-label">Versão (caso):</span>
+                    <span class="info-value">
+                        <span class="badge badge-version">v{{ custodia.versao }}</span>
+                        de <strong>{{ total_versoes_caso }}</strong> versão(ões) neste procedimento
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Status:</span>
+                    <span class="info-value">
+                        {% if custodia.ativo %}
+                            <span class="badge badge-success">Versão atual do caso</span>
+                        {% else %}
+                            <span class="badge badge-muted">Histórico (substituída por versão posterior)</span>
+                        {% endif %}
+                    </span>
+                </div>
+                {% if custodia.custodia_anterior %}
+                <div class="info-row">
+                    <span class="info-label">Versão anterior:</span>
+                    <span class="info-value">
+                        <a href="{% url 'custodia:detalhes' custodia.custodia_anterior.id %}" class="btn-link-inline">
+                            {{ custodia.custodia_anterior.numero_documento }} (v{{ custodia.custodia_anterior.versao }})
+                        </a>
+                    </span>
+                </div>
+                {% endif %}
+                {% if proxima_versao %}
+                <div class="info-row">
+                    <span class="info-label">Versão posterior:</span>
+                    <span class="info-value">
+                        <a href="{% url 'custodia:detalhes' proxima_versao.id %}" class="btn-link-inline">
+                            {{ proxima_versao.numero_documento }} (v{{ proxima_versao.versao }})
+                        </a>
+                    </span>
+                </div>
+                {% endif %}
+                <div class="info-row">
+                    <span class="info-label">Hash final (cadeia):</span>
                     <span class="info-value">
                         <code class="hash-full">{{ custodia.hash_pasta }}</code>
                         <button class="btn-copy-small" onclick="copiarHash()">Copiar</button>
                     </span>
                 </div>
+                {% if custodia.hash_cadeia_anterior %}
+                <div class="info-row">
+                    <span class="info-label">Hash versão anterior:</span>
+                    <span class="info-value"><code class="hash-full hash-secondary">{{ custodia.hash_cadeia_anterior }}</code></span>
+                </div>
+                {% endif %}
+                <div class="info-row">
+                    <span class="info-label">Hash agregado (novos/alterados):</span>
+                    <span class="info-value"><code class="hash-full hash-secondary">{{ custodia.hash_conteudo_novos }}</code></span>
+                </div>
+                <p class="hash-formula-hint">
+                    Fórmula do hash final: SHA-256( hex_anterior + "|" + hex_agregado_novos ). Na v1 o hash final coincide com o agregado de todos os arquivos.
+                </p>
             </div>
         </div>
 
@@ -123,6 +173,7 @@
                         <tr>
                             <th>Caminho Relativo</th>
                             <th>Nome do Arquivo</th>
+                            <th>Novo/alt.</th>
                             <th>Tamanho</th>
                             <th>Hash</th>
                             <th>Data Modificação</th>
@@ -133,6 +184,7 @@
                         <tr>
                             <td><code class="path-small">{{ arquivo.caminho_relativo }}</code></td>
                             <td><strong>{{ arquivo.nome_arquivo }}</strong></td>
+                            <td>{% if arquivo.novo_ou_alterado %}Sim{% else %}Não{% endif %}</td>
                             <td>{{ arquivo.tamanho_formatado }}</td>
                             <td><code class="hash-cell">{{ arquivo.hash_arquivo|default:"N/A" }}</code></td>
                             <td>{{ arquivo.data_modificacao|localtime|date:"d/m/Y H:i"|default:"N/A" }}</td>
@@ -256,6 +308,19 @@ function copiarHash() {
     max-width: 100%;
 }
 
+.hash-secondary {
+    background: #34495e;
+    font-size: 0.78rem;
+}
+
+.hash-formula-hint {
+    grid-column: 1 / -1;
+    font-size: 0.85rem;
+    color: #555;
+    margin: 0.5rem 0 0 0;
+    line-height: 1.4;
+}
+
 .hash-cell {
     font-family: 'Courier New', monospace;
     font-size: 0.75rem;
@@ -360,6 +425,30 @@ function copiarHash() {
 .badge-warning {
     background-color: #fff3cd;
     color: #856404;
+}
+
+.badge-muted {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+.badge-version {
+    background-color: #e7e9fd;
+    color: #4a4a8a;
+    font-family: 'Courier New', monospace;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.btn-link-inline {
+    color: #667eea;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.btn-link-inline:hover {
+    text-decoration: underline;
 }
 
 @media (max-width: 768px) {

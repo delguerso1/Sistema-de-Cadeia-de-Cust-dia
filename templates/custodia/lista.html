@@ -7,8 +7,84 @@
 <div class="list-container">
     <div class="list-header">
         <h2>Lista de Custódias</h2>
-        <a href="{% url 'custodia:index' %}" class="btn-primary">Nova Custódia</a>
+        <div class="list-header-actions">
+            <button type="button" class="btn-secondary" id="btn-abrir-busca-hash">Procurar por código hash</button>
+            {% if historico %}
+                <a href="{% url 'custodia:lista' %}" class="btn-secondary">Ver apenas versões atuais</a>
+            {% else %}
+                <a href="{% url 'custodia:lista' %}?historico=1" class="btn-secondary">Ver histórico completo</a>
+            {% endif %}
+            <a href="{% url 'custodia:index' %}" class="btn-primary">Nova Custódia</a>
+        </div>
     </div>
+
+    <div class="busca-hash-painel" id="painel-busca-hash" {% if not busca_hash_executada %}hidden{% endif %}>
+        <form method="get" action="{% url 'custodia:lista' %}" class="busca-hash-form">
+            {% if historico %}
+                <input type="hidden" name="historico" value="1">
+            {% endif %}
+            <label for="input-busca-hash">Código hash (SHA-256 ou trecho com no mínimo 8 caracteres)</label>
+            <input
+                type="text"
+                name="hash"
+                id="input-busca-hash"
+                class="busca-hash-input"
+                value="{{ busca_hash_valor|default:'' }}"
+                placeholder="Cole o hash completo ou parte do código"
+                autocomplete="off"
+            >
+            <div class="busca-hash-acoes">
+                <button type="submit" class="btn-primary">Procurar</button>
+                <button type="button" class="btn-secondary" id="btn-cancelar-busca-hash">Cancelar</button>
+            </div>
+        </form>
+    </div>
+
+    {% if busca_hash_erro %}
+        <div class="busca-hash-alert busca-hash-alert-erro">{{ busca_hash_erro }}</div>
+    {% endif %}
+    {% if busca_hash_executada and not busca_hash_erro %}
+        <div class="busca-hash-resultados">
+            {% if resultados_busca %}
+                <h3 class="busca-hash-titulo">Resultado da pesquisa por hash</h3>
+                <ul class="busca-hash-lista">
+                    {% for r in resultados_busca %}
+                    <li class="busca-hash-item">
+                        <p><strong><a href="{% url 'custodia:detalhes' r.custodia.id %}">{{ r.custodia.numero_documento }}</a></strong>
+                            — procedimento {{ r.custodia.caso.numero_procedimento }}, versão v{{ r.custodia.versao }}
+                            {% if r.custodia.ativo %}<span class="badge badge-success">Atual</span>{% else %}<span class="badge badge-muted">Histórico</span>{% endif %}
+                        </p>
+                        <p class="busca-hash-motivos">Onde o hash aparece: {{ r.motivos|join:", " }}.</p>
+                        <p class="busca-hash-posterior">
+                            {% if r.tem_posterior %}
+                                Existe versão posterior neste procedimento: <strong>sim</strong>.
+                                <a href="{% url 'custodia:detalhes' r.proxima.id %}">Ver documento {{ r.proxima.numero_documento }} (v{{ r.proxima.versao }})</a>
+                            {% else %}
+                                Existe versão posterior neste procedimento: <strong>não</strong> (esta é a versão mais recente da cadeia para este caso).
+                            {% endif %}
+                        </p>
+                        <p class="busca-hash-doc-pdf">
+                            {% if r.custodia.pdf_gerado %}
+                                <a href="{% url 'custodia:download_pdf' r.custodia.id %}" class="btn-link busca-hash-pdf-link" target="_blank" rel="noopener">Baixar PDF desta custódia</a>
+                                <span class="busca-hash-print-hint">— para imprimir de novo, abra o arquivo e use <kbd>Ctrl+P</kbd> (ou o comando Imprimir do leitor de PDF).</span>
+                            {% else %}
+                                <span class="busca-hash-sem-pdf">Não há PDF registrado para esta custódia. Abra os <a href="{% url 'custodia:detalhes' r.custodia.id %}">detalhes</a> para verificar ou gerar.</span>
+                            {% endif %}
+                        </p>
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="busca-hash-alert">Nenhum registro encontrado com esse hash no banco de dados.</div>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {% if historico %}
+        <p class="list-mode-hint">Mostrando todas as versões (incluindo histórico). Últimas 50 custódias por data.</p>
+    {% else %}
+        <p class="list-mode-hint">Mostrando apenas a <strong>versão atual</strong> de cada procedimento (últimas 50).</p>
+    {% endif %}
 
     {% if custodias %}
         <div class="table-container">
@@ -16,6 +92,8 @@
                 <thead>
                     <tr>
                         <th>Número do Documento</th>
+                        <th>Versão</th>
+                        <th>Status</th>
                         <th>Policial</th>
                         <th>Procedimento</th>
                         <th>Hash (resumido)</th>
@@ -29,6 +107,14 @@
                     {% for custodia in custodias %}
                     <tr>
                         <td><strong>{{ custodia.numero_documento }}</strong></td>
+                        <td><span class="badge badge-version">v{{ custodia.versao }}</span></td>
+                        <td>
+                            {% if custodia.ativo %}
+                                <span class="badge badge-success">Atual</span>
+                            {% else %}
+                                <span class="badge badge-muted">Histórico</span>
+                            {% endif %}
+                        </td>
                         <td>{{ custodia.policial.nome_completo }}</td>
                         <td>{{ custodia.caso.numero_procedimento }}</td>
                         <td><code class="hash-small">{{ custodia.hash_pasta|slice:":16" }}...</code></td>
@@ -79,6 +165,19 @@
     margin-bottom: 2rem;
     padding-bottom: 1rem;
     border-bottom: 2px solid #e0e0e0;
+}
+
+.list-header-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.list-mode-hint {
+    color: #555;
+    font-size: 0.95rem;
+    margin: -1rem 0 1.25rem 0;
 }
 
 .list-header h2 {
@@ -141,6 +240,17 @@
     color: #856404;
 }
 
+.badge-muted {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+.badge-version {
+    background-color: #e7e9fd;
+    color: #4a4a8a;
+    font-family: 'Courier New', monospace;
+}
+
 .btn-link {
     color: #667eea;
     text-decoration: none;
@@ -190,5 +300,142 @@
         padding: 0.5rem;
     }
 }
+
+.busca-hash-painel {
+    margin: 0 0 1.25rem 0;
+    padding: 1.25rem;
+    background: #f8f9ff;
+    border: 1px solid #c5cae8;
+    border-radius: 8px;
+}
+
+.busca-hash-form label {
+    display: block;
+    font-weight: 600;
+    color: #444;
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.busca-hash-input {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 0.65rem 0.85rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    margin-bottom: 0.75rem;
+}
+
+.busca-hash-acoes {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.busca-hash-resultados {
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: #f0f7f2;
+    border: 1px solid #b8d4c0;
+    border-radius: 8px;
+}
+
+.busca-hash-titulo {
+    margin: 0 0 0.75rem 0;
+    color: #2c5530;
+    font-size: 1.1rem;
+}
+
+.busca-hash-lista {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.busca-hash-item {
+    padding: 0.85rem 0;
+    border-bottom: 1px solid #d4e6d8;
+}
+
+.busca-hash-item:last-child {
+    border-bottom: none;
+}
+
+.busca-hash-motivos,
+.busca-hash-posterior {
+    margin: 0.35rem 0 0 0;
+    font-size: 0.92rem;
+    color: #333;
+    line-height: 1.45;
+}
+
+.busca-hash-alert {
+    margin-bottom: 1rem;
+    padding: 0.85rem 1rem;
+    background: #e8f4fd;
+    border: 1px solid #a8c8e8;
+    border-radius: 8px;
+    color: #1a4a6e;
+}
+
+.busca-hash-alert-erro {
+    background: #fdecea;
+    border-color: #e8a8a8;
+    color: #721c24;
+}
+
+.busca-hash-doc-pdf {
+    margin: 0.6rem 0 0 0;
+    font-size: 0.92rem;
+    line-height: 1.5;
+}
+
+.busca-hash-print-hint {
+    color: #555;
+}
+
+.busca-hash-doc-pdf kbd {
+    padding: 0.1rem 0.35rem;
+    background: #eee;
+    border-radius: 3px;
+    font-size: 0.85em;
+}
+
+.busca-hash-sem-pdf {
+    color: #666;
+}
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    var painel = document.getElementById('painel-busca-hash');
+    var btnAbrir = document.getElementById('btn-abrir-busca-hash');
+    var btnCancelar = document.getElementById('btn-cancelar-busca-hash');
+    var inputHash = document.getElementById('input-busca-hash');
+
+    if (btnAbrir && painel) {
+        btnAbrir.addEventListener('click', function() {
+            painel.hidden = !painel.hidden;
+            if (!painel.hidden && inputHash) {
+                inputHash.focus();
+            }
+        });
+    }
+
+    if (btnCancelar) {
+        btnCancelar.addEventListener('click', function() {
+            {% if historico %}
+            window.location.href = "{% url 'custodia:lista' %}?historico=1";
+            {% else %}
+            window.location.href = "{% url 'custodia:lista' %}";
+            {% endif %}
+        });
+    }
+})();
+</script>
 {% endblock %}

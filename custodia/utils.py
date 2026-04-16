@@ -82,6 +82,54 @@ def calcular_hash_pasta(caminho_pasta: str) -> Tuple[str, List[Dict]]:
     return hash_final, lista_arquivos
 
 
+def combinar_hashes_entradas_rel_hash(entradas: List[str]) -> str:
+    """
+    Combina entradas 'caminho_relativo:hash' (lista já ordenada ou será ordenada aqui)
+    no mesmo formato de calcular_hash_pasta.
+    """
+    if not entradas:
+        return hashlib.sha256(b'').hexdigest()
+    ordenado = sorted(entradas)
+    h = hashlib.sha256()
+    h.update(''.join(ordenado).encode('utf-8'))
+    return h.hexdigest()
+
+
+def combinar_hashes_lista_arquivos(lista_info: List[Dict]) -> str:
+    """Agrega hashes a partir de dicionários com caminho_relativo e hash."""
+    entradas = [f"{x['caminho_relativo']}:{x['hash']}" for x in lista_info]
+    return combinar_hashes_entradas_rel_hash(entradas)
+
+
+def calcular_hash_cadeia(hash_anterior_hex: str, hash_conteudo_novos_hex: str) -> str:
+    """
+    Hash final da cadeia: incorpora explicitamente o hash da versão anterior
+    e o agregado desta versão (novos/alterados).
+    """
+    raw = f"{hash_anterior_hex}|{hash_conteudo_novos_hex}"
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+
+def particionar_novos_ou_alterados(
+    lista_atual: List[Dict],
+    mapa_anterior: Dict[str, str],
+) -> Tuple[List[Dict], List[Dict]]:
+    """
+    mapa_anterior: caminho_relativo -> hash_arquivo da versão anterior.
+    Retorna (lista novos ou alterados, lista inalterados).
+    """
+    novos = []
+    inalterados = []
+    for info in lista_atual:
+        rel = info['caminho_relativo']
+        h = info['hash']
+        if rel not in mapa_anterior or mapa_anterior[rel] != h:
+            novos.append(info)
+        else:
+            inalterados.append(info)
+    return novos, inalterados
+
+
 def coletar_info_arquivo(arquivo: Path, pasta_base: Path) -> Dict:
     """
     Coleta informações detalhadas de um arquivo
